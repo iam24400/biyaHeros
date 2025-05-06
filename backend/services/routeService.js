@@ -112,12 +112,29 @@ const findConnectingRoutes = async (originLat, originLng, destLat, destLng) => {
                       route2Points.findIndex(p => p.latitude === destPoints[j].latitude && p.longitude === destPoints[j].longitude)
                     ) + 1
                   )
+                ],
+                intersections: [
+                  {
+                    latitude: intersection1.latitude,
+                    longitude: intersection1.longitude,
+                    routeId: routes[i].id
+                  },
+                  {
+                    latitude: intersection2.latitude,
+                    longitude: intersection2.longitude,
+                    routeId: routes[j].id
+                  }
                 ]
               };
             }
           }
         }
       }
+    }
+
+    // For single route case, add empty intersections array
+    if (bestCombination && bestCombination.routes.length === 1) {
+      bestCombination.intersections = [];
     }
 
     return bestCombination;
