@@ -7,9 +7,8 @@ const queriesDB = {
     async checkExistingEmail (email) {
         try {
             const query = `SELECT email FROM public."user" WHERE email = $1`;
-            const result = await client.query( query, [email]);
-            console.log(result.rows[0]['email']);
-            return result.rows[0]['email'];
+            const result = await client.query(query, [email]);
+            return result.rows[0]?.email || null;
         } catch (err) {
             console.error('Error:', err.message);
             throw err;
@@ -99,10 +98,8 @@ const queriesDB = {
     }
       
 
-    
-
-
-
 }
+
+
 
 export default queriesDB;

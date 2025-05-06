@@ -11,7 +11,7 @@ const protectRoute = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // check user if exist in DB
-    const user = await queriesBD.checkExistingEmail(decode.email)
+    const user = await queriesBD.checkExistingEmail(decoded.email)
     if (!user) return res.status(401).json({ message: "Token is not valid" });
 s
     req.user = user;

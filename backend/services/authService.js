@@ -3,43 +3,43 @@ import queriesDB from "../database/queriesDB.js"
 import bcrypt from "bcryptjs";
 
 const generateToken = (email) => {
-    return jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "10d" });
-  };
+    return jwt.sign({ email }, "biyaHero", { expiresIn: "10d" });
+};
 
 export const register = async (req, res) => {
     try {
-    const { email, password, confirmedPass, passengerType } = req.body;
+    const { email, password: rawPassword, confirmedPass, passengerType } = req.body;
 
-    if (!email || !password || !confirmedPass) {
+    if (!email || !rawPassword || !confirmedPass) {
         return res.status(400).json({ message: "All fields are required" });
     }
 
-    if (password.length < 6) {
+    if (rawPassword.length < 6) {
         return res.status(400).json({ message: "Password should be at least 6 characters long" });
     }
 
     // check if user already exists
     const existingEmail = await queriesDB.checkExistingEmail(email);
-    if (email == existingEmail) {
+    if (existingEmail) {
         return res.status(400).json({ message: "Email already exists!" });
     }
 
     // check if pass and confirmed pass was the same
-    if (password == confirmedPass) {
-        return res.status(400).json({ message: "Password doesnt matched!" });
+    if (rawPassword !== confirmedPass) {
+        return res.status(400).json({ message: "Passwords don't match!" });
     }
 
     // bycrypting password before saving to DB
     const salt = await bcrypt.genSalt(15);
-    password = await bcrypt.hash(password, salt);
+    const password = await bcrypt.hash(rawPassword, salt);
     
     // saving to DB
-    queriesDB.addUser (email, password, passengerType)
+    await queriesDB.addUser(email, password, passengerType);
 
     // generating token using email 
     const token = generateToken(email);
 
-    const user = queriesDB.retrievePassTypeAndTime(email);
+    const user = await queriesDB.retrievePassTypeAndTime(email);
 
     // sending info to client
     res.status(201).json({
@@ -63,21 +63,22 @@ export const login = async (req, res) => {
   
       if (!email || !password) return res.status(400).json({ message: "All fields are required" });
   
-      // check if user already exists
+      // check if user exists
       const existingEmail = await queriesDB.checkExistingEmail(email);
-      if (email == existingEmail) {
+      if (!existingEmail) {
         return res.status(400).json({ message: "Invalid credentials" });
       };
   
       // check if password was correct
-      const isCorrectPassword = bcrypt.compare(password, queriesDB.retrievePassword(email));
+      const hashedPassword = await queriesDB.retrievePassword(email);
+      const isCorrectPassword = await bcrypt.compare(password, hashedPassword);
       if (!isCorrectPassword) return res.status(400).json({ message: "Invalid credentials" });
   
       const token = generateToken(email);
   
-      const user = queriesDB.retrievePassTypeAndTime(email);
+      const user = await queriesDB.retrievePassTypeAndTime(email);
   
-      res.status(201).json({
+      res.status(200).json({
         token,
         user: {
           email: email,
