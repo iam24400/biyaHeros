@@ -1,6 +1,6 @@
 import queriesDB from "../database/queriesDB.js"
 
-
+// view all history
 export const viewHistory = async (req, res) => {
   try {
     const { userId } = req.body;
@@ -28,7 +28,7 @@ export const viewHistory = async (req, res) => {
   }
 };
 
-
+// store new history
 export const storeHistory = async (req, res) => {
   try {
     const { userId, destination, startLocation, estimatedTime, fare } = req.body;
@@ -53,7 +53,7 @@ export const storeHistory = async (req, res) => {
   }
 };
 
-
+// marking history as favorite or not
 export const updateFavorite = async (req, res) => {
   try {
     const { historyId, isFavorite } = req.body;

@@ -1,7 +1,8 @@
 import client from "../database/postgreDB.js";
 import queriesDB from "../database/queriesDB.js"
 
-// Function to calculate distance between two points
+// function to calculate distance between two points
+// harvesine formula
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371; // Earth's radius in kilometers
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -15,13 +16,13 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 
-// Main function to find connecting routes
+// main function to find connecting routes
 const findConnectingRoutes = async (originLat, originLng, destLat, destLng) => {
   try {
-    // Get all available routes
+    // get all available routes
     const routes = await queriesDB.jeepney_routes();
 
-    // Find nearest points for origin and destination on each route
+    // find nearest points for origin and destination on each route
     const originPoints = await Promise.all(
       routes.map(route => queriesDB.findNearestPoint(originLat, originLng, route.id))
     );
@@ -29,14 +30,14 @@ const findConnectingRoutes = async (originLat, originLng, destLat, destLng) => {
       routes.map(route => queriesDB.findNearestPoint(destLat, destLng, route.id))
     );
 
-    // Find the best combination of routes
+    // find the best combination of routes
     let bestCombination = null;
     let minDistance = Infinity;
 
     for (let i = 0; i < routes.length; i++) {
       for (let j = 0; j < routes.length; j++) {
         if (i === j) {
-          // Same route case
+          // same route case
           const routePoints = await queriesDB.getRoutePoints(routes[i].id);
           const originIndex = routePoints.findIndex(p => 
             p.latitude === originPoints[i].latitude && 
@@ -64,11 +65,11 @@ const findConnectingRoutes = async (originLat, originLng, destLat, destLng) => {
             }
           }
         } else {
-          // Different routes case
+          // different routes case
           const route1Points = await queriesDB.getRoutePoints(routes[i].id);
           const route2Points = await queriesDB.getRoutePoints(routes[j].id);
 
-          // Find intersection points (closest points between routes)
+          // find intersection points (closest points between routes)
           let minDist = Infinity;
           let intersection1 = null;
           let intersection2 = null;
@@ -141,7 +142,7 @@ const findConnectingRoutes = async (originLat, originLng, destLat, destLng) => {
       }
     }
 
-    // For single route case, add empty intersections array
+    // for single route case, add empty intersections array
     if (bestCombination && bestCombination.routes.length === 1) {
       bestCombination.intersections = [];
     }
@@ -154,7 +155,7 @@ const findConnectingRoutes = async (originLat, originLng, destLat, destLng) => {
 }; 
 
 
-// Get connecting routes between origin and destination
+// get connecting routes between origin and destination
 const routeService = async (req, res) => {
   try {
     const { originLat, originLng, destLat, destLng } = req.body;

@@ -6,6 +6,7 @@ const generateToken = (email) => {
     return jwt.sign({ email }, "biyaHero", { expiresIn: "10d" });
 };
 
+// register
 export const register = async (req, res) => {
     try {
     const { email, password: rawPassword, confirmedPass, passengerType } = req.body;
@@ -57,7 +58,7 @@ export const register = async (req, res) => {
     }
 };
 
-
+// login
 export const login = async (req, res) => {
     try {
       const { email, password } = req.body;

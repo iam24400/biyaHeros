@@ -1,5 +1,6 @@
 import colors from 'colors';
 
+// logs the HTTP method and the api path
 const logger = (req, res, next) => {
   const methodColors = {
     GET: 'green',

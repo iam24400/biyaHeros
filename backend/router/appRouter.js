@@ -5,6 +5,7 @@ import {storeNotification, getNotifications, getUserProfile, updateNotificationS
 
 const router = express.Router();
 
+// app processes
 router.get('/jeepneyRoutes', routeService);
 router.get('/viewHistory', viewHistory);
 router.post('/storeHistory', storeHistory);

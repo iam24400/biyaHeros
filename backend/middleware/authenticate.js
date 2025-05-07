@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import queriesBD from "../database/queriesDB.js"
 
-// t
+// check if transaction was authorized
 const authenticate = async (req, res, next) => {
   try {
     // get the token from client's request

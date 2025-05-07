@@ -1,6 +1,6 @@
 import queriesDB from "../database/queriesDB.js";
 
-// Store notification for a user
+// store notification for a user
 export const storeNotification = async (req, res) => {
     try {
         const { userId, message } = req.body;
@@ -12,7 +12,7 @@ export const storeNotification = async (req, res) => {
     }
 };
 
-// Retrieve notifications for a user
+// retrieve notifications for a user
 export const getNotifications = async (req, res) => {
     try {
         const { userId } = req.body;
@@ -24,7 +24,7 @@ export const getNotifications = async (req, res) => {
     }
 };
 
-// Get user profile details
+// get user profile details
 export const getUserProfile = async (req, res) => {
     try {
         const { userId } = req.body;
@@ -39,7 +39,7 @@ export const getUserProfile = async (req, res) => {
     }
 };
 
-// Update notification settings
+// update notification settings
 export const updateNotificationSettings = async (req, res) => {
     try {
         const { userId, notificationsEnabled } = req.body;
