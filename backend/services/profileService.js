@@ -54,3 +54,23 @@ export const updateNotificationSettings = async (req, res) => {
     }
 };
 
+// update passenger type
+export const updatePassengerType = async (req, res) => {
+    try {
+        const { userId, passengerType } = req.body;
+        
+        if (!userId || passengerType === undefined) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        const result = await queriesDB.updatePassengerType(userId, passengerType);
+        if (!result) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.status(200).json(result);
+    } catch (err) {
+        console.error('Error updating passenger type:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+

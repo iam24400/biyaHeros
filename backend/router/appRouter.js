@@ -1,7 +1,7 @@
 import express from "express";
 import routeService from "../services/routeService.js";
 import {viewHistory, storeHistory, updateFavorite} from "../services/historyService.js";
-import {storeNotification, getNotifications, getUserProfile, updateNotificationSettings} from "../services/profileService.js";
+import {storeNotification, getNotifications, getUserProfile, updateNotificationSettings, updatePassengerType} from "../services/profileService.js";
 
 const router = express.Router();
 
@@ -15,6 +15,7 @@ router.post('/storeNotification', storeNotification);
 router.get('/getNotifications', getNotifications);
 router.get('/getUserProfile', getUserProfile);
 router.post('/updateNotificationSettings', updateNotificationSettings);
+router.post('/updatePassengerType', updatePassengerType);
 
 router.get('/biyaheros', async (req, res) => {
     console.log("biyaheros");
