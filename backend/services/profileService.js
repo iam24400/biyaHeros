@@ -67,10 +67,11 @@ export const updatePassengerType = async (req, res) => {
         if (!result) {
             return res.status(404).json({ error: 'User not found' });
         }
+
         res.status(200).json(result);
-    } catch (err) {
-        console.error('Error updating passenger type:', err.message);
-        res.status(500).json({ error: err.message });
+    } catch (error) {
+        console.error('Error updating passenger type:', error);
+        res.status(500).json({ error: error.message || 'Failed to update passenger type' });
     }
 };
 

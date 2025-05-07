@@ -117,7 +117,7 @@ const queriesDB = {
     },
 
     // store ride history
-    async storeHistory (userId, destination, startLocation, estimatedTime, fare, distance) {
+    async storeHistory (userId, destination, startLocation, estimatedTime, fare) {
         try {
             const query = `
                 INSERT INTO public.history (
@@ -125,10 +125,9 @@ const queriesDB = {
                     destination, 
                     "startLocation", 
                     "estimatedTime", 
-                    fare,
-                    distance) 
-                VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`;
-            const result = await client.query(query, [userId, destination, startLocation, estimatedTime, fare, distance]);
+                    fare) 
+                VALUES ($1, $2, $3, $4, $5) RETURNING id`;
+            const result = await client.query(query, [userId, destination, startLocation, estimatedTime, fare]);
             return result;
         } catch (err) {
             console.error('Error storing ride history:', err.message);
@@ -146,8 +145,7 @@ const queriesDB = {
                     destination, 
                     "startLocation", 
                     "estimatedTime", 
-                    fare,
-                    distance,
+                    fare, 
                     "isFavorite", 
                     "timeStamp"
                 FROM public.history
@@ -223,21 +221,23 @@ const queriesDB = {
         }
     },
 
-    // update passenger type
-    async updatePassengerType(userId, passengerType, discountType) {
+        // update passenger type
+    async updatePassengerType(userId, passengerType) {
         try {
             const query = `
                 UPDATE public."user" 
-                SET "passengerType" = $1, "discountType" = $2
-                WHERE id = $3 
-                RETURNING id, "passengerType", "discountType"`;
-            const result = await client.query(query, [passengerType, discountType, userId]);
+                SET "passengerType" = $1
+                WHERE id = $2 
+                RETURNING id, "passengerType"`;
+            const result = await client.query(query, [passengerType, userId]);
             return result.rows[0];
         } catch (err) {
             console.error('Error updating passenger type:', err.message);
             throw err;
         }
     }
+
 }
+
 
 export default queriesDB;
