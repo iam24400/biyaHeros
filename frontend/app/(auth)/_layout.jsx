@@ -1,8 +1,8 @@
 import { Stack } from 'expo-router';
-import { useAuth } from '../context/AuthContext';
+import { useAuthStore } from '../../context/authStore';
 
 export default function AuthLayout() {
-  const { isAuthenticated } = useAuth();
+  const { token } = useAuthStore();
 
   return (
     <Stack screenOptions={{ 

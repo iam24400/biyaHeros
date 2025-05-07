@@ -3,12 +3,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Dimensions, Alert, Modal, FlatList
+  ScrollView, Dimensions, Alert, Modal, FlatList, ActivityIndicator
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { API_URL } from '../../api/api';
 
 const DEVICE_HEIGHT = Dimensions.get('window').height;
 const DEVICE_WIDTH = Dimensions.get('window').width;
@@ -25,6 +26,7 @@ export default function RoutePage() {
   const [location, setLocation] = useState(null);
   const [mapFullScreen, setMapFullScreen] = useState(false);
   const [tapMode, setTapMode] = useState('destination');
+  const [isLoading, setIsLoading] = useState(false);
   const webviewRef = useRef(null);
   const [showLocationOptions, setShowLocationOptions] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
@@ -37,6 +39,10 @@ export default function RoutePage() {
   const [calculatedDistance, setCalculatedDistance] = useState(null);
   const [showInstructions, setShowInstructions] = useState(false);
   const router = useRouter();
+  const params = useLocalSearchParams();
+
+  // Add a ref to track if we've already handled the initial params
+  const initialParamsHandled = useRef(false);
 
   const alangilanStops = [
     { name: 'Terminal', time: '9:51' },
@@ -268,6 +274,69 @@ export default function RoutePage() {
     })();
   }, []);
 
+  useEffect(() => {
+    // Only handle params if we haven't already and if we have the required params
+    if (!initialParamsHandled.current && params.originText && params.destinationText) {
+      initialParamsHandled.current = true;
+      
+      // Set text fields
+      setOriginName(params.originText);
+      setDestinationName(params.destinationText);
+      
+      // Function to handle place selection
+      const handlePlaceSelection = async () => {
+        try {
+          // Handle origin
+          if (params.originLat && params.originLng) {
+            const originCoords = {
+              lat: parseFloat(params.originLat),
+              lng: parseFloat(params.originLng),
+              name: params.originText,
+              address: params.originText
+            };
+            setOrigin(originCoords);
+            
+            // Update map with origin marker
+            webviewRef.current?.postMessage(JSON.stringify({ 
+              origin: originCoords,
+              destination: destination || null
+            }));
+          }
+          
+          // Handle destination
+          if (params.destinationLat && params.destinationLng) {
+            const destCoords = {
+              lat: parseFloat(params.destinationLat),
+              lng: parseFloat(params.destinationLng),
+              name: params.destinationText,
+              address: params.destinationText
+            };
+            setDestination(destCoords);
+            
+            // Update map with both markers and draw route
+            webviewRef.current?.postMessage(JSON.stringify({ 
+              origin: origin || originCoords,
+              destination: destCoords
+            }));
+          }
+
+          // Automatically calculate route if both locations are set
+          if (params.originLat && params.originLng && params.destinationLat && params.destinationLng) {
+            // Small delay to ensure markers are placed
+            setTimeout(() => {
+              calculateRouteDistance();
+            }, 500);
+          }
+        } catch (error) {
+          console.error('Error handling place selection:', error);
+        }
+      };
+
+      // Execute place selection
+      handlePlaceSelection();
+    }
+  }, [params]);
+
   const geocodePlace = async (place) => {
     const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(place)}&key=${GOOGLE_MAPS_API_KEY}&components=country:ph`;
     const res = await fetch(url);
@@ -281,7 +350,14 @@ export default function RoutePage() {
 
   const handleOriginInput = async (text) => {
     setOriginName(text);
-    if (text.length > 2) {
+    if (!text) {
+      setOrigin(null);
+      setOriginSuggestions([]);
+      webviewRef.current?.postMessage(JSON.stringify({ 
+        origin: null,
+        destination: destination || null
+      }));
+    } else if (text.length > 2) {
       const suggestions = await geocodePlace(text);
       setOriginSuggestions(suggestions);
     } else {
@@ -291,7 +367,14 @@ export default function RoutePage() {
 
   const handleDestinationInput = async (text) => {
     setDestinationName(text);
-    if (text.length > 2) {
+    if (!text) {
+      setDestination(null);
+      setDestinationSuggestions([]);
+      webviewRef.current?.postMessage(JSON.stringify({ 
+        origin: origin || null,
+        destination: null
+      }));
+    } else if (text.length > 2) {
       const suggestions = await geocodePlace(text);
       setDestinationSuggestions(suggestions);
     } else {
@@ -423,6 +506,7 @@ export default function RoutePage() {
   const calculateRouteDistance = async () => {
     if (origin && destination) {
       try {
+        setIsLoading(true);
         const response = await fetch(
           `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}&key=${GOOGLE_MAPS_API_KEY}`
         );
@@ -444,28 +528,138 @@ export default function RoutePage() {
       } catch (error) {
         console.error('Error calculating route:', error);
         Alert.alert('Error', 'Failed to calculate route. Please try again.');
+      } finally {
+        setIsLoading(false);
       }
     }
   };
 
-  const startRoute = () => {
+  const startRoute = async () => {
     if (origin && destination) {
-      // Navigate to navigation page with route information
-      router.push({
-        pathname: "/navigation",
-        params: {
-          distance: routeInfo.distance,
-          duration: routeInfo.duration,
-          estimatedArrival: routeInfo.estimatedArrival,
-          originLat: origin.lat,
-          originLng: origin.lng,
-          destinationLat: destination.lat,
-          destinationLng: destination.lng
+      try {
+        setIsLoading(true);
+        const url = `${API_URL}/byaHero/jeepneyRoutes?originLat=${origin.lat}&originLng=${origin.lng}&destLat=${destination.lat}&destLng=${destination.lng}`;
+        console.log('Making route request to:', url);
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          mode: 'cors',
+          credentials: 'omit'
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Response not OK:', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: JSON.stringify(Object.fromEntries(response.headers.entries())),
+            body: errorText
+          });
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
         }
-      });
+
+        const responseText = await response.text();
+        console.log('Response text length:', responseText.length);
+        console.log('Route response text:', responseText);
+
+        if (!responseText) {
+          throw new Error('Empty response received from server');
+        }
+
+        let routeData;
+        try {
+          routeData = JSON.parse(responseText);
+          console.log('Successfully parsed route data:', routeData);
+        } catch (parseError) {
+          console.error('Error parsing response:', parseError);
+          console.error('Raw response text:', responseText);
+          throw new Error('Invalid JSON response from server');
+        }
+
+        if (!routeData || !routeData.points) {
+          console.error('Invalid route data structure:', routeData);
+          throw new Error('Invalid route data received');
+        }
+
+        // Calculate total distance and duration
+        let totalDistance = 0;
+        let totalDuration = 0;
+
+        // Calculate distance for each segment
+        routeData.points.forEach((segment, index) => {
+          console.log(`Processing segment ${index + 1} with ${segment.length} points`);
+          for (let i = 0; i < segment.length - 1; i++) {
+            const point1 = segment[i];
+            const point2 = segment[i + 1];
+            const distance = calculateDistance(
+              point1.latitude,
+              point1.longitude,
+              point2.latitude,
+              point2.longitude
+            );
+            totalDistance += distance;
+          }
+        });
+
+        // Estimate duration (assuming average speed of 30 km/h)
+        totalDuration = Math.round((totalDistance / 30) * 60);
+
+        // Calculate estimated arrival time
+        const now = new Date();
+        const arrivalTime = new Date(now.getTime() + totalDuration * 60000);
+
+        // Navigate to navigation page with route data
+        router.push({
+          pathname: "/navigation",
+          params: {
+            routeData: JSON.stringify(routeData),
+            distance: totalDistance,
+            duration: totalDuration,
+            estimatedArrival: arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            originLat: origin.lat,
+            originLng: origin.lng,
+            destinationLat: destination.lat,
+            destinationLng: destination.lng,
+            userId: '12',
+            originText: origin.name || origin.address,
+            destinationText: destination.name || destination.address
+          }
+        });
+      } catch (error) {
+        console.error('Error starting route:', error);
+        Alert.alert('Error', 'Failed to start route');
+      } finally {
+        setIsLoading(false);
+      }
     } else {
-      Alert.alert('Error', 'Please select both origin and destination points');
+      Alert.alert(
+        'Error',
+        'Please select both origin and destination points',
+        [{ text: 'OK' }]
+      );
     }
+  };
+
+  // Helper function to calculate distance between two points
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    const distance = R * c; // Distance in km
+    return distance;
+  };
+
+  const deg2rad = (deg) => {
+    return deg * (Math.PI/180);
   };
 
   return (
@@ -476,9 +670,6 @@ export default function RoutePage() {
       bounces={true}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => alert('Back')}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
         <Text style={styles.title}>BiyaHero</Text>
       </View>
 
@@ -489,7 +680,7 @@ export default function RoutePage() {
         
         <View style={styles.pointDetails}>
           <View style={styles.pointRow}>
-            <Text style={styles.pointIcon}>📍</Text>
+            <Ionicons name="location" size={16} color="#666" style={styles.pointIcon} />
             <View style={styles.pointInfo}>
               <Text style={styles.pointLabel}>Starting Point</Text>
               <View style={styles.searchContainer}>
@@ -503,24 +694,26 @@ export default function RoutePage() {
                   style={styles.currentLocationBtn}
                   onPress={setCurrentLocationAsOrigin}
                 >
-                  <Text>📍</Text>
+                  <Ionicons name="locate" size={14} color="#666" />
                 </TouchableOpacity>
               </View>
               {originSuggestions.length > 0 && (
                 <View style={styles.suggestionsContainer}>
-                  {originSuggestions.map((item, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.suggestionItem}
-                      onPress={() => selectOrigin(item)}
-                    >
-                      <Text style={styles.suggestionText}>{item.description}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  <ScrollView style={styles.suggestionsScroll}>
+                    {originSuggestions.map((item, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.suggestionItem}
+                        onPress={() => selectOrigin(item)}
+                      >
+                        <Text style={styles.suggestionText} numberOfLines={1}>{item.description}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 </View>
               )}
               {origin && (
-                <Text style={styles.locationName}>
+                <Text style={styles.locationName} numberOfLines={1}>
                   {origin.name || origin.address}
                 </Text>
               )}
@@ -530,7 +723,7 @@ export default function RoutePage() {
           <View style={styles.divider} />
 
           <View style={styles.pointRow}>
-            <Text style={styles.pointIcon}>📍</Text>
+            <Ionicons name="location" size={16} color="#666" style={styles.pointIcon} />
             <View style={styles.pointInfo}>
               <Text style={styles.pointLabel}>Destination</Text>
               <View style={styles.searchContainer}>
@@ -543,19 +736,21 @@ export default function RoutePage() {
               </View>
               {destinationSuggestions.length > 0 && (
                 <View style={styles.suggestionsContainer}>
-                  {destinationSuggestions.map((item, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.suggestionItem}
-                      onPress={() => selectDestination(item)}
-                    >
-                      <Text style={styles.suggestionText}>{item.description}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  <ScrollView style={styles.suggestionsScroll}>
+                    {destinationSuggestions.map((item, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.suggestionItem}
+                        onPress={() => selectDestination(item)}
+                      >
+                        <Text style={styles.suggestionText} numberOfLines={1}>{item.description}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 </View>
               )}
               {destination && (
-                <Text style={styles.locationName}>
+                <Text style={styles.locationName} numberOfLines={1}>
                   {destination.name || destination.address}
                 </Text>
               )}
@@ -580,15 +775,27 @@ export default function RoutePage() {
             </View>
           )}
 
-          {origin && destination && (
-            <TouchableOpacity 
-              style={styles.startRouteButton}
-              onPress={startRoute}
-            >
-              <Ionicons name="navigate" size={24} color="white" />
-              <Text style={styles.startRouteText}>Start Route</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity 
+            style={[
+              styles.startRouteButton,
+              (!origin || !destination) && styles.startRouteButtonDisabled,
+              isLoading && styles.startRouteButtonLoading
+            ]}
+            onPress={startRoute}
+            disabled={!origin || !destination || isLoading}
+          >
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color="white" size="small" />
+                <Text style={styles.startRouteText}>Calculating Route...</Text>
+              </View>
+            ) : (
+              <>
+                <Ionicons name="navigate" size={20} color="white" />
+                <Text style={styles.startRouteText}>Start Route</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -597,7 +804,7 @@ export default function RoutePage() {
           ref={webviewRef}
           originWhitelist={['*']}
           source={{ html: googleMapsHtml }}
-          style={{ height: DEVICE_HEIGHT * 0.5, width: '100%' }}
+          style={{ height: DEVICE_HEIGHT * 0.7, width: '100%' }}
           javaScriptEnabled={true}
           domStorageEnabled={true}
           scrollEnabled={false}
@@ -633,25 +840,6 @@ export default function RoutePage() {
         </View>
       </Modal>
 
-      <View style={styles.tabContainer}>
-        <TouchableOpacity style={selectedTab === 'alangilan' ? styles.activeTab : styles.inactiveTab} onPress={() => setSelectedTab('alangilan')}>
-          <Text style={selectedTab === 'alangilan' ? styles.tabText : styles.tabTextGray}>Alangilan</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={selectedTab === 'possibleRoutes' ? styles.activeTab : styles.inactiveTab} onPress={() => setSelectedTab('possibleRoutes')}>
-          <Text style={selectedTab === 'possibleRoutes' ? styles.tabText : styles.tabTextGray}>Possible Routes</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.stopList}>
-        {stopsToShow.map((stop, index) => (
-          <View key={index} style={styles.stopItem}>
-            <Text style={styles.stopIcon}>🛑</Text>
-            <Text style={styles.stopName}>{stop.name}</Text>
-            {stop.time && <Text style={styles.stopTime}>{stop.time}</Text>}
-          </View>
-        ))}
-      </View>
-
       <Modal
         visible={showLocationOptions}
         transparent={true}
@@ -684,13 +872,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 32, // Extra padding at bottom for better scrolling
+    paddingBottom: 32,
   },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  backArrow: { fontSize: 20, marginRight: 10 },
   title: { fontSize: 24, fontWeight: 'bold' },
   mapContainer: { 
-    height: 300, // Reduced height to show more content
+    height: DEVICE_HEIGHT * 0.7,
     borderRadius: 15, 
     overflow: 'hidden', 
     marginBottom: 20 
@@ -698,16 +885,6 @@ const styles = StyleSheet.create({
   fullscreenBtn: { position: 'absolute', top: 10, right: 10, backgroundColor: '#fff', padding: 6, borderRadius: 6, zIndex: 10 },
   fullscreenWrapper: { flex: 1, backgroundColor: '#000' },
   exitFullscreenBtn: { position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.6)', padding: 10, borderRadius: 20 },
-  tabContainer: { flexDirection: 'row', marginVertical: 10 },
-  activeTab: { flex: 1, padding: 10, backgroundColor: '#007bff', borderRadius: 10, marginRight: 5 },
-  inactiveTab: { flex: 1, padding: 10, backgroundColor: '#ccc', borderRadius: 10, marginLeft: 5 },
-  tabText: { color: '#fff', textAlign: 'center', fontWeight: 'bold' },
-  tabTextGray: { color: '#333', textAlign: 'center', fontWeight: 'bold' },
-  stopList: { marginTop: 10 },
-  stopItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  stopIcon: { marginRight: 8 },
-  stopName: { flex: 1 },
-  stopTime: { color: 'gray' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -749,44 +926,44 @@ const styles = StyleSheet.create({
   },
   estimationBox: {
     backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   estimationTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
+    marginBottom: 8,
     textAlign: 'center',
   },
   estimationContent: {
     backgroundColor: '#f8f9fa',
-    borderRadius: 10,
-    padding: 15,
+    borderRadius: 6,
+    padding: 8,
   },
   estimationItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 4,
   },
   estimationLabel: {
-    fontSize: 16,
+    fontSize: 12,
     color: '#666',
   },
   estimationDistance: {
-    fontSize: 20,
+    fontSize: 14,
     color: '#007bff',
     fontWeight: 'bold',
   },
   estimationTime: {
-    fontSize: 20,
+    fontSize: 14,
     color: '#007bff',
     fontWeight: 'bold',
   },
@@ -862,7 +1039,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   distanceDetailsContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
     borderRadius: 12,
     backgroundColor: '#fff',
     shadowColor: '#000',
@@ -873,46 +1050,45 @@ const styles = StyleSheet.create({
   },
   distanceHeader: {
     backgroundColor: '#007bff',
-    padding: 12,
+    padding: 8,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
   },
   distanceHeaderText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
   },
   pointDetails: {
-    padding: 16,
+    padding: 12,
   },
   pointRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   pointIcon: {
-    fontSize: 20,
-    marginRight: 12,
+    marginRight: 8,
   },
   pointInfo: {
     flex: 1,
   },
   pointLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   locationName: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#333',
-    marginTop: 8,
+    marginTop: 4,
     fontStyle: 'italic',
   },
   divider: {
     height: 1,
     backgroundColor: '#e0e0e0',
-    marginVertical: 12,
+    marginVertical: 8,
   },
   distanceRow: {
     flexDirection: 'row',
@@ -951,55 +1127,79 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
+    marginVertical: 4,
   },
   searchInput: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    padding: 8,
-    fontSize: 16,
+    borderRadius: 6,
+    padding: 6,
+    fontSize: 14,
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
   currentLocationBtn: {
-    marginLeft: 8,
-    padding: 8,
+    marginLeft: 6,
+    padding: 6,
     backgroundColor: '#f0f0f0',
-    borderRadius: 8,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+  },
+  locationIcon: {
+    fontSize: 14,
   },
   suggestionsContainer: {
     backgroundColor: '#fff',
-    borderRadius: 8,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    marginTop: 4,
-    maxHeight: 200,
+    marginTop: 2,
+    maxHeight: 150,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  suggestionsScroll: {
+    maxHeight: 150,
   },
   suggestionItem: {
-    padding: 12,
+    padding: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
   suggestionText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#333',
   },
   startRouteButton: {
     flexDirection: 'row',
     backgroundColor: '#28a745',
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 15,
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startRouteButtonDisabled: {
+    backgroundColor: '#cccccc',
+    opacity: 0.7,
+  },
+  startRouteButtonLoading: {
+    backgroundColor: '#28a745',
+    opacity: 0.8,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   startRouteText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
-    marginLeft: 10,
+    marginLeft: 8,
   },
 });

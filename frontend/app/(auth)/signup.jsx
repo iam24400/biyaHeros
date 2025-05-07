@@ -1,8 +1,23 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, Modal, Switch, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Alert,
+  Modal,
+  Switch,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../context/AuthContext';
+import { useAuthStore } from '../../context/authStore';
 import { Ionicons } from '@expo/vector-icons';
+import COLORS from '../../constants/colors';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
@@ -13,9 +28,9 @@ export default function Signup() {
   const [isEligibleForDiscount, setIsEligibleForDiscount] = useState(false);
   const [discountType, setDiscountType] = useState('');
   const [showDiscountModal, setShowDiscountModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  
   const router = useRouter();
-  const { signup } = useAuth();
+  const { register, isLoading } = useAuthStore();
 
   const discountTypes = ["Student", "Senior Citizen", "PWD (Persons with Disabilities)"];
 
@@ -25,187 +40,222 @@ export default function Signup() {
       return;
     }
 
-    if (isEligibleForDiscount && !discountType) {
-      Alert.alert('Error', 'Please select a discount type');
-      return;
-    }
-
     if (password !== confirmPassword) {
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const success = await signup(email, password, isEligibleForDiscount ? discountType : null);
-      if (success) {
-        router.replace('/(tabs)');
-      } else {
-        Alert.alert('Error', 'Failed to create account');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'An error occurred during signup');
-    } finally {
-      setIsLoading(false);
+    if (isEligibleForDiscount && !discountType) {
+      Alert.alert('Error', 'Please select a discount type');
+      return;
+    }
+
+    // Send registration request with boolean passengerType
+    const result = await register(
+      email, 
+      password, 
+      isEligibleForDiscount // This will be true/false
+    );
+    
+    if (!result.success) {
+      Alert.alert('Error', result.error);
+    } else {
+      router.replace('/(tabs)');
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.logoContainer}>
-        <Image
-          source={require('../../assets/images/LOGO1.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../assets/images/LOGO1.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
 
-      <Text style={styles.title}>Create Account</Text>
-      <Text style={styles.subtitle}>Join BiyaHero today</Text>
-      
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          editable={!isLoading}
-        />
+        <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.subtitle}>Join BiyaHero today</Text>
         
-        <View style={styles.passwordContainer}>
-          <TextInput
-            style={[styles.input, styles.passwordInput]}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            editable={!isLoading}
-          />
-          <TouchableOpacity 
-            style={styles.eyeIcon}
-            onPress={() => setShowPassword(!showPassword)}
-          >
-            <Ionicons 
-              name={showPassword ? "eye-off" : "eye"} 
-              size={24} 
-              color="#666" 
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.passwordContainer}>
-          <TextInput
-            style={[styles.input, styles.passwordInput]}
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry={!showConfirmPassword}
-            editable={!isLoading}
-          />
-          <TouchableOpacity 
-            style={styles.eyeIcon}
-            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-          >
-            <Ionicons 
-              name={showConfirmPassword ? "eye-off" : "eye"} 
-              size={24} 
-              color="#666" 
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.discountContainer}>
-          <View style={styles.discountToggleRow}>
-            <Text style={styles.discountLabel}>Eligible for Discount?</Text>
-            <Switch
-              value={isEligibleForDiscount}
-              onValueChange={(value) => {
-                setIsEligibleForDiscount(value);
-                if (!value) setDiscountType('');
-              }}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={isEligibleForDiscount ? '#007AFF' : '#f4f3f4'}
-            />
+        <View style={styles.inputContainer}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color={COLORS.primary}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!isLoading}
+              />
+            </View>
+          </View>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Password</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color={COLORS.primary}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                editable={!isLoading}
+              />
+              <TouchableOpacity 
+                style={styles.eyeIcon}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons 
+                  name={showPassword ? "eye-outline" : "eye-off-outline"} 
+                  size={20} 
+                  color={COLORS.primary}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {isEligibleForDiscount && (
-            <TouchableOpacity
-              style={styles.discountTypeButton}
-              onPress={() => setShowDiscountModal(true)}
-            >
-              <Text style={styles.discountTypeButtonText}>
-                {discountType || 'Select Discount Type'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      <TouchableOpacity 
-        style={[styles.button, isLoading && styles.buttonDisabled]} 
-        onPress={handleSignup}
-        disabled={isLoading}
-      >
-        <Text style={styles.buttonText}>
-          {isLoading ? 'Creating account...' : 'Sign Up'}
-        </Text>
-      </TouchableOpacity>
-
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>OR</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      <TouchableOpacity 
-        style={styles.loginButton}
-        onPress={() => router.push('/login')}
-        disabled={isLoading}
-      >
-        <Text style={styles.loginButtonText}>Already have an account? Sign In</Text>
-      </TouchableOpacity>
-
-      <Modal
-        visible={showDiscountModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowDiscountModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Discount Type</Text>
-            {discountTypes.map((type, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.modalOption,
-                  discountType === type && styles.modalOptionSelected
-                ]}
-                onPress={() => {
-                  setDiscountType(type);
-                  setShowDiscountModal(false);
-                }}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Confirm Password</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color={COLORS.primary}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showConfirmPassword}
+                editable={!isLoading}
+              />
+              <TouchableOpacity 
+                style={styles.eyeIcon}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
               >
-                <Text style={[
-                  styles.modalOptionText,
-                  discountType === type && styles.modalOptionTextSelected
-                ]}>
-                  {type}
+                <Ionicons 
+                  name={showConfirmPassword ? "eye-outline" : "eye-off-outline"} 
+                  size={20} 
+                  color={COLORS.primary}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.discountContainer}>
+            <View style={styles.discountToggleRow}>
+              <Text style={styles.discountLabel}>Eligible for Discount?</Text>
+              <Switch
+                value={isEligibleForDiscount}
+                onValueChange={(value) => {
+                  setIsEligibleForDiscount(value);
+                  if (!value) setDiscountType('');
+                }}
+                trackColor={{ false: '#767577', true: COLORS.primary }}
+                thumbColor={isEligibleForDiscount ? '#fff' : '#f4f3f4'}
+              />
+            </View>
+
+            {isEligibleForDiscount && (
+              <TouchableOpacity
+                style={styles.discountTypeButton}
+                onPress={() => setShowDiscountModal(true)}
+              >
+                <Text style={styles.discountTypeButtonText}>
+                  {discountType || 'Select Discount Type'}
                 </Text>
               </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setShowDiscountModal(false)}
-            >
-              <Text style={styles.modalCloseButtonText}>Cancel</Text>
-            </TouchableOpacity>
+            )}
           </View>
         </View>
-      </Modal>
-    </ScrollView>
+
+        <TouchableOpacity 
+          style={[styles.button, isLoading && styles.buttonDisabled]} 
+          onPress={handleSignup}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Sign Up</Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>OR</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity 
+          style={styles.loginButton}
+          onPress={() => router.push('/login')}
+          disabled={isLoading}
+        >
+          <Text style={styles.loginButtonText}>Already have an account? Sign In</Text>
+        </TouchableOpacity>
+
+        <Modal
+          visible={showDiscountModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowDiscountModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Select Discount Type</Text>
+              {discountTypes.map((type, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.modalOption,
+                    discountType === type && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setDiscountType(type);
+                    setShowDiscountModal(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    discountType === type && styles.modalOptionTextSelected
+                  ]}>
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowDiscountModal(false)}
+              >
+                <Text style={styles.modalCloseButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -228,10 +278,11 @@ const styles = StyleSheet.create({
     height: 200,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 10,
-    textAlign: 'center'
+    textAlign: 'center',
+    color: COLORS.primary,
   },
   subtitle: {
     fontSize: 16,
@@ -240,74 +291,55 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   inputContainer: {
-    gap: 15,
-    marginBottom: 10,
+    gap: 20,
+    marginBottom: 20,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 15,
-    borderRadius: 8,
-    backgroundColor: '#f8f8f8',
+  inputGroup: {
+    gap: 8,
+  },
+  label: {
     fontSize: 16,
-  },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    paddingRight: 50,
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 15,
-    top: '50%',
-    transform: [{ translateY: -12 }],
-  },
-  discountContainer: {
-    marginTop: 0,
-  },
-  discountToggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 0,
-  },
-  discountLabel: {
-    fontSize: 16,
+    fontWeight: '500',
     color: '#333',
   },
-  discountTypeButton: {
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor:'#007AFF',
-    padding: 15,
+    borderColor: '#ddd',
     borderRadius: 8,
-    backgroundColor: '#f8f8f8',
-    alignItems: 'center'
+    paddingHorizontal: 12,
   },
-  discountTypeButtonText: {
+  inputIcon: {
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    padding: 15,
     fontSize: 16,
-    color: '#007AFF',
-    fontWeight: 'bold'
+  },
+  eyeIcon: {
+    padding: 10,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 5,
+    marginTop: 20,
   },
   buttonDisabled: {
-    backgroundColor: '#ccc',
+    opacity: 0.7,
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: 30,
   },
   dividerLine: {
     flex: 1,
@@ -319,16 +351,35 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   loginButton: {
+    alignItems: 'center',
+  },
+  loginButtonText: {
+    color: COLORS.primary,
+    fontSize: 16,
+  },
+  discountContainer: {
+    marginTop: 10,
+  },
+  discountToggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  discountLabel: {
+    fontSize: 16,
+    color: '#333',
+  },
+  discountTypeButton: {
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: '#ddd',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
   },
-  loginButtonText: {
-    color: '#007AFF',
+  discountTypeButtonText: {
+    color: '#666',
     fontSize: 16,
-    fontWeight: 'bold',
   },
   modalOverlay: {
     flex: 1,
@@ -337,49 +388,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 15,
+    backgroundColor: '#fff',
+    borderRadius: 12,
     padding: 20,
     width: '80%',
-    alignItems: 'center',
+    maxWidth: 400,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 20,
-    color: '#333',
+    textAlign: 'center',
   },
   modalOption: {
-    width: '100%',
     padding: 15,
     borderRadius: 8,
     marginBottom: 10,
-    backgroundColor: '#f8f8f8',
   },
   modalOptionSelected: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
   },
   modalOptionText: {
     fontSize: 16,
-    textAlign: 'center',
     color: '#333',
+    textAlign: 'center',
   },
   modalOptionTextSelected: {
     color: '#fff',
   },
   modalCloseButton: {
-    marginTop: 10,
+    marginTop: 20,
     padding: 15,
-    borderColor: '#007AFF',
-    width: '100%',
     borderRadius: 8,
-    borderWidth: 1
-    
+    backgroundColor: '#f0f0f0',
   },
   modalCloseButtonText: {
+    color: '#666',
     fontSize: 16,
     textAlign: 'center',
-    color: '#007AFF',
-    fontWeight: 'bold',
   },
 }); 

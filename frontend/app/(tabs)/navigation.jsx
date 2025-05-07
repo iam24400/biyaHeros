@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
@@ -7,16 +7,29 @@ import { useState, useEffect } from 'react';
 const DEVICE_HEIGHT = Dimensions.get('window').height;
 const DEVICE_WIDTH = Dimensions.get('window').width;
 const GOOGLE_MAPS_API_KEY = 'AIzaSyB_EVYbeC10C69_PXjVWCVGDog4tU1XXnY';
+const API_URL = 'https://biyaheros.onrender.com/api'; // Updated to use the correct backend URL
 
 export default function NavigationPage() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [directions, setDirections] = useState([]);
-
+  
+  console.log('Navigation page mounted');
+  console.log('Raw params:', params);
+  
+  let routeData = null;
+  try {
+    routeData = params.routeData ? JSON.parse(params.routeData) : null;
+    console.log('Successfully parsed route data:', routeData);
+  } catch (error) {
+    console.error('Error parsing route data:', error);
+    console.log('Raw routeData string:', params.routeData);
+  }
+  
   const routeInfo = {
-    distance: params.distance || "5.2",
-    duration: params.duration || "15",
-    estimatedArrival: params.estimatedArrival || "11:30 AM",
+    distance: params.distance || "0",
+    duration: params.duration || "0",
+    estimatedArrival: params.estimatedArrival || "N/A",
     origin: {
       lat: parseFloat(params.originLat) || 13.7565,
       lng: parseFloat(params.originLng) || 121.0583
@@ -26,10 +39,131 @@ export default function NavigationPage() {
       lng: parseFloat(params.destinationLng) || 121.0583
     }
   };
+  console.log('Constructed route info:', routeInfo);
+  const [mapHtml, setMapHtml] = useState('');
 
   useEffect(() => {
-    fetchDirections();
-  }, []);
+    console.log('Navigation page useEffect triggered');
+    if (routeData) {
+      console.log('Generating map HTML with route data');
+      const mapHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <script src="https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}"></script>
+            <style>
+              html, body, #map {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+              }
+            </style>
+          </head>
+          <body>
+            <div id="map"></div>
+            <script>
+              function initMap() {
+                console.log('Initializing map');
+                const map = new google.maps.Map(document.getElementById('map'), {
+                  center: { lat: ${(routeInfo.origin.lat + routeInfo.destination.lat) / 2}, 
+                          lng: ${(routeInfo.origin.lng + routeInfo.destination.lng) / 2}},
+                  zoom: 12
+                });
+
+                // Add origin marker
+                new google.maps.Marker({
+                  position: { lat: ${routeInfo.origin.lat}, lng: ${routeInfo.origin.lng} },
+                  map: map,
+                  icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: '#4CAF50',
+                    fillOpacity: 1,
+                    strokeColor: '#FFFFFF',
+                    strokeWeight: 2
+                  }
+                });
+
+                // Add destination marker
+                new google.maps.Marker({
+                  position: { lat: ${routeInfo.destination.lat}, lng: ${routeInfo.destination.lng} },
+                  map: map,
+                  icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: '#F44336',
+                    fillOpacity: 1,
+                    strokeColor: '#FFFFFF',
+                    strokeWeight: 2
+                  }
+                });
+
+                // Draw route segments
+                const routeData = ${JSON.stringify(routeData)};
+                console.log('Drawing route segments:', routeData);
+                const bounds = new google.maps.LatLngBounds();
+
+                // Draw each segment with its color
+                routeData.points.forEach((segment, index) => {
+                  console.log('Drawing segment', index + 1);
+                  const path = segment.map(point => ({
+                    lat: point.latitude,
+                    lng: point.longitude
+                  }));
+
+                  // Use the color from the first point of the segment
+                  const color = segment[0].color || '#000000';
+
+                  new google.maps.Polyline({
+                    path: path,
+                    geodesic: true,
+                    strokeColor: color,
+                    strokeOpacity: 1.0,
+                    strokeWeight: 5,
+                    map: map
+                  });
+
+                  // Extend bounds to include all points
+                  path.forEach(point => bounds.extend(point));
+                });
+
+                // Add intersection markers if they exist
+                if (routeData.intersections) {
+                  console.log('Adding intersection markers');
+                  routeData.intersections.forEach(intersection => {
+                    new google.maps.Marker({
+                      position: { lat: intersection.latitude, lng: intersection.longitude },
+                      map: map,
+                      icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 8,
+                        fillColor: '#FFC107',
+                        fillOpacity: 1,
+                        strokeColor: '#FFFFFF',
+                        strokeWeight: 2
+                      }
+                    });
+                  });
+                }
+
+                // Fit map to show all route segments
+                map.fitBounds(bounds);
+                console.log('Map initialization complete');
+              }
+
+              window.onload = initMap;
+            </script>
+          </body>
+        </html>
+      `;
+
+      console.log('Setting map HTML');
+      setMapHtml(mapHtml);
+    } else {
+      console.log('No route data available');
+    }
+  }, [routeData, routeInfo]);
 
   const fetchDirections = async () => {
     try {
@@ -51,124 +185,61 @@ export default function NavigationPage() {
     }
   };
 
-  const googleMapsHtml = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset='utf-8'>
-        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-        <style>
-          html, body, #map { 
-            height: 100%; 
-            margin: 0; 
-            padding: 0; 
-            width: 100%;
-          }
-          #map {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-          }
-        </style>
-      </head>
-      <body>
-        <div id='map'></div>
-        <script>
-          let map;
-          let directionsService;
-          let directionsRenderer;
-          let originMarker;
-          let destinationMarker;
-          
-          function initMap() {
-            const origin = { lat: ${routeInfo.origin.lat}, lng: ${routeInfo.origin.lng} };
-            const destination = { lat: ${routeInfo.destination.lat}, lng: ${routeInfo.destination.lng} };
-            
-            // Calculate center point between origin and destination
-            const center = {
-              lat: (origin.lat + destination.lat) / 2,
-              lng: (origin.lng + destination.lng) / 2
-            };
+  const handleEndNavigation = async () => {
+    try {
+      // Calculate fare based on distance
+      const distanceInKm = parseFloat(routeInfo.distance);
+      let baseFare = 13; // Base fare for less than 4 km
+      
+      if (distanceInKm > 4) {
+        const additionalKm = Math.ceil(distanceInKm - 4); // Round up to nearest km
+        baseFare += additionalKm; // Add ₱1 for each additional km
+      }
 
-            map = new google.maps.Map(document.getElementById('map'), {
-              center: center,
-              zoom: 13,
-              mapTypeControl: true,
-              streetViewControl: true,
-              fullscreenControl: true,
-              zoomControl: true
-            });
-            
-            directionsService = new google.maps.DirectionsService();
-            directionsRenderer = new google.maps.DirectionsRenderer({
-              map: map,
-              suppressMarkers: true,
-              polylineOptions: {
-                strokeColor: '#4285F4',
-                strokeWeight: 5
-              }
-            });
+      // Apply 20% discount if passengerType is true
+      const discount = params.passengerType === 'true' ? 0.2 : 0;
+      const finalFare = baseFare * (1 - discount);
 
-            // Add origin and destination markers
-            originMarker = new google.maps.Marker({
-              position: origin,
-              map: map,
-              title: 'Origin',
-              icon: {
-                url: 'https://maps.google.com/mapfiles/ms/micons/red-dot.png',
-                scaledSize: new google.maps.Size(32, 32),
-              },
-            });
+      // Get userId from route parameters or use a default
+      const userId = parseInt(params.userId) || 12;
 
-            destinationMarker = new google.maps.Marker({
-              position: destination,
-              map: map,
-              title: 'Destination',
-              icon: {
-                url: 'https://maps.google.com/mapfiles/ms/micons/blue-dot.png',
-                scaledSize: new google.maps.Size(32, 32),
-              },
-            });
+      // Store the route in history
+      const response = await fetch(`${API_URL}/byaHero/storeHistory`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: userId,
+          destination: String(params.destinationText || 'Route'),
+          startLocation: String(params.originText || 'Current Location'),
+          estimatedTime: String(routeInfo.duration),
+          fare: finalFare,
+          distance: distanceInKm,
+          passengerType: params.passengerType // Store passengerType with the history
+        })
+      });
 
-            // Draw route
-            const request = {
-              origin: origin,
-              destination: destination,
-              travelMode: 'DRIVING',
-            };
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to store route in history');
+      }
 
-            directionsService.route(request, function(result, status) {
-              if (status === 'OK') {
-                directionsRenderer.setDirections(result);
-              }
-            });
-          }
-        </script>
-        <script async defer
-          src="https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initMap">
-        </script>
-      </body>
-    </html>
-  `;
+      // Navigate back to home
+      router.push('/');
+    } catch (error) {
+      console.error('Error storing route in history:', error);
+      Alert.alert('Error', error.message || 'Failed to store route in history');
+    }
+  };
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Navigation</Text>
-      </View>
-
       <View style={styles.mapContainer}>
         <WebView
           originWhitelist={['*']}
-          source={{ html: googleMapsHtml }}
+          source={{ html: mapHtml }}
           style={{ height: DEVICE_HEIGHT * 0.4, width: '100%' }}
           javaScriptEnabled={true}
           domStorageEnabled={true}
@@ -190,7 +261,7 @@ export default function NavigationPage() {
           <Ionicons name="navigate-outline" size={24} color="#007bff" />
           <View style={styles.summaryText}>
             <Text style={styles.summaryLabel}>Distance</Text>
-            <Text style={styles.summaryValue}>{routeInfo.distance} km</Text>
+            <Text style={styles.summaryValue}>{parseFloat(routeInfo.distance).toFixed(2)} km</Text>
           </View>
         </View>
 
@@ -201,31 +272,28 @@ export default function NavigationPage() {
             <Text style={styles.summaryValue}>{routeInfo.estimatedArrival}</Text>
           </View>
         </View>
-      </View>
 
-      <View style={styles.instructionsContainer}>
-        <Text style={styles.instructionsTitle}>Turn-by-Turn Directions</Text>
-        {directions.map((step, index) => (
-          <View key={index} style={styles.instructionItem}>
-            <View style={styles.instructionNumber}>
-              <Text style={styles.instructionNumberText}>{index + 1}</Text>
-            </View>
-            <View style={styles.instructionContent}>
-              <Text style={styles.instructionText}>{step.instruction}</Text>
-              <View style={styles.stepDetails}>
-                <Text style={styles.stepDistance}>{step.distance}</Text>
-                <Text style={styles.stepDuration}>{step.duration}</Text>
-              </View>
-            </View>
+        <View style={styles.summaryItem}>
+          <Ionicons name="cash-outline" size={24} color="#007AFF" />
+          <View style={styles.summaryText}>
+            <Text style={styles.summaryLabel}>Fare</Text>
+            <Text style={styles.summaryValue}>
+              {(() => {
+                const baseFare = routeInfo.distance < 4 ? 13 : 13 + (routeInfo.distance - 4);
+                const discount = params.passengerType === 'true' ? 0.2 : 0;
+                const finalFare = baseFare * (1 - discount);
+                return `₱${finalFare.toFixed(2)}${discount > 0 ? ' (20% off)' : ''}`;
+              })()}
+            </Text>
           </View>
-        ))}
+        </View>
       </View>
 
       <TouchableOpacity 
-        style={styles.endRouteButton}
-        onPress={() => router.push("/route")}
+        style={styles.endButton}
+        onPress={handleEndNavigation}
       >
-        <Text style={styles.endRouteText}>End Navigation</Text>
+        <Text style={styles.endButtonText}>End Navigation</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -269,6 +337,7 @@ const styles = StyleSheet.create({
   },
   summaryText: {
     marginLeft: 16,
+    flex: 1,
   },
   summaryLabel: {
     fontSize: 14,
@@ -279,65 +348,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
-  instructionsContainer: {
-    padding: 16,
-  },
-  instructionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
-  },
-  instructionItem: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    alignItems: 'flex-start',
-  },
-  instructionNumber: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#007bff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  instructionNumberText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  instructionContent: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-  },
-  instructionText: {
-    fontSize: 16,
-    color: '#333',
-    lineHeight: 24,
-  },
-  stepDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  stepDistance: {
-    fontSize: 14,
-    color: '#666',
-  },
-  stepDuration: {
-    fontSize: 14,
-    color: '#666',
-  },
-  endRouteButton: {
+  endButton: {
     backgroundColor: '#dc3545',
     padding: 16,
     margin: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
-  endRouteText: {
+  endButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',

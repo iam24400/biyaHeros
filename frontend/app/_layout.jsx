@@ -1,40 +1,48 @@
-import { Stack, useSegments, useRouter } from 'expo-router';
-import { AuthProvider, useAuth } from '../context/AuthContext';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { useAuthStore } from '../context/authStore';
 import { useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 
-// Create a wrapper component to handle auth state
-function AuthWrapper({ children }) {
-  const { user, loading } = useAuth();
+export default function RootLayout() {
+  const { token, isCheckingAuth, checkAuth } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    console.log('Layout effect - Auth state:', { isCheckingAuth, hasToken: !!token });
+    
+    if (isCheckingAuth) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const inTabsGroup = segments[0] === '(tabs)';
 
-    if (!user && !inAuthGroup) {
-      // Redirect to login if not authenticated and not in auth group
+    console.log('Current segment:', segments[0]);
+
+    if (!token && !inAuthGroup) {
+      console.log('Redirecting to login...');
       router.replace('/login');
-    } else if (user && inAuthGroup) {
-      // Redirect to home if authenticated and in auth group
+    } else if (token && inAuthGroup) {
+      console.log('Redirecting to tabs...');
       router.replace('/(tabs)');
     }
-  }, [user, loading, segments]);
+  }, [token, isCheckingAuth, segments]);
 
-  return children;
-}
+  if (isCheckingAuth) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
 
-export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AuthWrapper>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        </Stack>
-      </AuthWrapper>
-    </AuthProvider>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    </Stack>
   );
 }

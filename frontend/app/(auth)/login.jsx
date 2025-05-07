@@ -1,11 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../context/AuthContext';
+import { useAuthStore } from '../../context/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import Signup from './signup';
 import { Slot } from 'expo-router';
-import { AuthProvider } from '../../context/AuthContext';
+import COLORS from '../../constants/colors';
 
 export const options = {
   headerShown: false,
@@ -15,10 +26,9 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, isLoading, isCheckingAuth } = useAuthStore();
   const mountedRef = useRef(false);
 
   useEffect(() => {
@@ -48,92 +58,114 @@ export default function Login() {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      await login(email, password);
-      if (!showSplash && mountedRef.current) {
-        router.replace('/tabs');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'An error occurred during login'
-      );
-    } finally {
-      setIsLoading(false);
+    const result = await login(email, password);
+    
+    if (!result.success) {
+      Alert.alert('Error', result.error);
+    } else {
+      router.replace('/(tabs)');
     }
   };
 
+  if (isCheckingAuth) return null;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.logoContainer}>
-        <Image
-          source={require('../../assets/images/LOGO1.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
-
-      <Text style={styles.title}>Welcome to BiyaHero</Text>
-      <Text style={styles.subtitle}>Sign in to continue</Text>
-      
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          editable={!isLoading}
-        />
-        <View style={styles.passwordContainer}>
-          <TextInput
-            style={[styles.input, styles.passwordInput]}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            editable={!isLoading}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <View style={styles.container}>
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../../assets/images/LOGO1.png')}
+            style={styles.logo}
+            resizeMode="contain"
           />
-          <TouchableOpacity 
-            style={styles.eyeIcon}
-            onPress={() => setShowPassword(!showPassword)}
-          >
-            <Ionicons 
-              name={showPassword ? "eye-off" : "eye"} 
-              size={24} 
-              color="#666" 
-            />
-          </TouchableOpacity>
         </View>
+
+        <Text style={styles.title}>Welcome Back</Text>
+        <Text style={styles.subtitle}>Sign in to continue</Text>
+
+        <View style={styles.inputContainer}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="mail-outline"
+                size={20}
+                color={COLORS.primary}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!isLoading}
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Password</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color={COLORS.primary}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                editable={!isLoading}
+              />
+              <TouchableOpacity 
+                style={styles.eyeIcon}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons 
+                  name={showPassword ? "eye-outline" : "eye-off-outline"} 
+                  size={20} 
+                  color={COLORS.primary}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <TouchableOpacity 
+          style={[styles.button, isLoading && styles.buttonDisabled]} 
+          onPress={handleLogin}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Sign In</Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>OR</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity 
+          style={styles.signupButton}
+          onPress={() => router.push('/signup')}
+          disabled={isLoading}
+        >
+          <Text style={styles.signupButtonText}>Don't have an account? Sign Up</Text>
+        </TouchableOpacity>
       </View>
-
-      <TouchableOpacity 
-        style={[styles.button, isLoading && styles.buttonDisabled]} 
-        onPress={handleLogin}
-        disabled={isLoading}
-      >
-        <Text style={styles.buttonText}>
-          {isLoading ? 'Logging in...' : 'Log In'}
-        </Text>
-      </TouchableOpacity>
-
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>OR</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      <TouchableOpacity 
-        style={styles.signupButton}
-        onPress={() => router.push('/signup')}
-        disabled={isLoading}
-      >
-        <Text style={styles.signupButtonText}>Create New Account</Text>
-      </TouchableOpacity>
-    </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -141,10 +173,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  scrollContent: {
     padding: 20,
-    paddingBottom: 40, // Extra padding at bottom for better scrolling
   },
   logoContainer: {
     alignItems: 'center',
@@ -156,10 +185,11 @@ const styles = StyleSheet.create({
     height: 200,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 10,
     textAlign: 'center',
+    color: COLORS.primary,
   },
   subtitle: {
     fontSize: 16,
@@ -168,48 +198,55 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   inputContainer: {
-    gap: 15,
-    marginBottom: 30,
+    gap: 20,
+    marginBottom: 20,
   },
-  input: {
+  inputGroup: {
+    gap: 8,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ddd',
-    padding: 15,
     borderRadius: 8,
-    backgroundColor: '#f8f8f8',
+    paddingHorizontal: 12,
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    padding: 15,
     fontSize: 16,
   },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    paddingRight: 50,
-  },
   eyeIcon: {
-    position: 'absolute',
-    right: 15,
-    top: '50%',
-    transform: [{ translateY: -12 }],
+    padding: 10,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 5,
+    marginTop: 20,
   },
   buttonDisabled: {
-    backgroundColor: '#ccc',
+    opacity: 0.7,
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: 30,
   },
   dividerLine: {
     flex: 1,
@@ -221,15 +258,10 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   signupButton: {
-    borderWidth: 1,
-    borderColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
     alignItems: 'center',
   },
   signupButtonText: {
-    color: '#007AFF',
+    color: COLORS.primary,
     fontSize: 16,
-    fontWeight: 'bold',
   },
 }); 

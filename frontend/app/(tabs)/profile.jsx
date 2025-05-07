@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Alert, TouchableOpacity, Image, Modal, Switch, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
-import { useAuth } from "../context/AuthContext";
+import { useAuthStore } from "../../context/authStore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import COLORS from "../../constants/colors";
+
+const API_URL = 'https://biyaheros.onrender.com/api';
 
 export default function ProfilePage() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -11,7 +15,7 @@ export default function ProfilePage() {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState(null);
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuthStore();
 
   const discountTypes = ["Student", "Senior Citizen", "PWD (Persons with Disabilities)"];
 
@@ -24,11 +28,11 @@ export default function ProfilePage() {
   ];
 
   // Initialize state from user data
-  useState(() => {
+  useEffect(() => {
     if (user) {
-      setIsEligibleForDiscount(user.isDiscounted || false);
+      setIsEligibleForDiscount(user.passengerType === 'true');
       setDiscountType(user.discountType || '');
-      setSelectedAvatar(user.avatar || AVATAR_CHOICES[0]); // Default to first avatar if no avatar
+      setSelectedAvatar(user.avatar || AVATAR_CHOICES[0]);
     }
   }, [user]);
 
@@ -55,10 +59,42 @@ export default function ProfilePage() {
 
   const handleUpdateDiscount = async (newDiscountType = null) => {
     try {
-      // await updateUserProfile({
-      //   isDiscounted: isEligibleForDiscount,
-      //   discountType: newDiscountType || discountType
-      // });
+      const passengerType = isEligibleForDiscount ? 'true' : 'false';
+      
+      const updateData = {
+        userId: user.id,
+        passengerType: passengerType
+      };
+
+      console.log('Updating profile with:', updateData);
+
+      const response = await fetch(`${API_URL}/byaHero/updatePassengerType`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      const responseData = await response.json();
+      console.log('Update response:', responseData);
+
+      if (!response.ok) {
+        throw new Error(responseData.error || 'Failed to update profile');
+      }
+
+      // Update local user state
+      const updatedUser = {
+        ...user,
+        passengerType: passengerType,
+        discountType: newDiscountType || discountType
+      };
+      
+      // Update auth store and AsyncStorage
+      await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
+      useAuthStore.setState({ user: updatedUser });
+
       Alert.alert(
         "Success",
         "Discount status updated successfully"
@@ -67,7 +103,7 @@ export default function ProfilePage() {
       console.error('Update error:', error);
       Alert.alert(
         "Error",
-        "Failed to update discount status. Please try again."
+        error.message || "Failed to update discount status. Please try again."
       );
     }
   };
@@ -75,7 +111,7 @@ export default function ProfilePage() {
   const handleUpdateAvatar = async (avatarUrl) => {
     try {
       setSelectedAvatar(avatarUrl);
-      // await updateUserProfile({ avatar: avatarUrl });
+      // TODO: Implement update avatar API call
       setShowAvatarModal(false);
     } catch (error) {
       console.error('Avatar update error:', error);
@@ -95,10 +131,10 @@ export default function ProfilePage() {
             />
           </View>
         </TouchableOpacity>
-        <Text style={styles.name}>{user?.name || 'Biya Hero'}</Text>
+        <Text style={styles.name}>{user?.email?.split('@')[0] || 'Biya Hero'}</Text>
         <Text style={styles.email}>{user?.email || '@biyahero.gmail.com'}</Text>
         <Text style={styles.memberSince}>
-          Member since {user?.createdAt ? new Date(user.createdAt).getFullYear() : '2024'}
+          Member since {user?.timeStamp ? new Date(user.timeStamp).getFullYear() : '2024'}
         </Text>
         
         {/* Discount Status */}
@@ -116,7 +152,7 @@ export default function ProfilePage() {
           </View>
           <View style={[
             styles.discountIndicator,
-            { backgroundColor: isEligibleForDiscount ? '#4CAF50' : '#FF5252' }
+            { backgroundColor: isEligibleForDiscount ? COLORS.success : COLORS.danger }
           ]} />
         </TouchableOpacity>
       </View>
@@ -152,12 +188,67 @@ export default function ProfilePage() {
               <Text style={styles.discountLabel}>Eligible for Discount?</Text>
               <Switch
                 value={isEligibleForDiscount}
-                onValueChange={(value) => {
-                  setIsEligibleForDiscount(value);
-                  if (!value) setDiscountType('');
+                onValueChange={async (value) => {
+                  try {
+                    // Update local state first
+                    setIsEligibleForDiscount(value);
+                    
+                    // Prepare update data
+                    const updateData = {
+                      userId: user.id,
+                      passengerType: value ? 'true' : 'false'
+                    };
+
+                    console.log('Updating profile with:', updateData);
+
+                    const response = await fetch(`${API_URL}/byaHero/updatePassengerType`, {
+                      method: 'POST',
+                      headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify(updateData)
+                    });
+
+                    const responseData = await response.json();
+                    console.log('Update response:', responseData);
+
+                    if (!response.ok) {
+                      throw new Error(responseData.error || 'Failed to update profile');
+                    }
+
+                    // Update local user state
+                    const updatedUser = {
+                      ...user,
+                      passengerType: value ? 'true' : 'false',
+                      discountType: value ? discountType : ''
+                    };
+                    
+                    // Update auth store and AsyncStorage
+                    await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
+                    useAuthStore.setState({ user: updatedUser });
+
+                    // Clear discount type if toggled off
+                    if (!value) {
+                      setDiscountType('');
+                    }
+
+                    Alert.alert(
+                      "Success",
+                      "Discount status updated successfully"
+                    );
+                  } catch (error) {
+                    console.error('Update error:', error);
+                    // Revert the toggle state on error
+                    setIsEligibleForDiscount(!value);
+                    Alert.alert(
+                      "Error",
+                      error.message || "Failed to update discount status. Please try again."
+                    );
+                  }
                 }}
-                trackColor={{ false: '#767577', true: '#81b0ff' }}
-                thumbColor={isEligibleForDiscount ? '#007AFF' : '#f4f3f4'}
+                trackColor={{ false: '#767577', true: COLORS.primary }}
+                thumbColor={isEligibleForDiscount ? '#fff' : '#f4f3f4'}
               />
             </View>
 
@@ -171,7 +262,53 @@ export default function ProfilePage() {
                       styles.discountTypeOption,
                       discountType === type && styles.discountTypeSelected
                     ]}
-                    onPress={() => setDiscountType(type)}
+                    onPress={async () => {
+                      try {
+                        setDiscountType(type);
+                        
+                        const updateData = {
+                          userId: user.id,
+                          passengerType: 'true'
+                        };
+
+                        const response = await fetch(`${API_URL}/byaHero/updatePassengerType`, {
+                          method: 'POST',
+                          headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify(updateData)
+                        });
+
+                        const responseData = await response.json();
+
+                        if (!response.ok) {
+                          throw new Error(responseData.error || 'Failed to update profile');
+                        }
+
+                        // Update local user state
+                        const updatedUser = {
+                          ...user,
+                          passengerType: 'true',
+                          discountType: type
+                        };
+                        
+                        // Update auth store and AsyncStorage
+                        await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
+                        useAuthStore.setState({ user: updatedUser });
+
+                        Alert.alert(
+                          "Success",
+                          "Discount type updated successfully"
+                        );
+                      } catch (error) {
+                        console.error('Update error:', error);
+                        Alert.alert(
+                          "Error",
+                          error.message || "Failed to update discount type. Please try again."
+                        );
+                      }
+                    }}
                   >
                     <Text style={[
                       styles.discountTypeText,
@@ -186,20 +323,10 @@ export default function ProfilePage() {
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={() => {
-                  handleUpdateDiscount();
-                  setShowDiscountModal(false);
-                }}
-              >
-                <Text style={styles.saveButtonText}>Save Changes</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setShowDiscountModal(false)}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -286,7 +413,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   logoutButton: {
-    backgroundColor: "#e0e0e0",
+    backgroundColor: COLORS.danger,
     borderRadius: 10,
     paddingVertical: 15,
     paddingHorizontal: 20,
@@ -295,7 +422,7 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "black",
+    color: "#fff",
   },
   discountStatus: {
     flexDirection: 'row',
@@ -367,7 +494,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   discountTypeSelected: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
   },
   discountTypeText: {
     fontSize: 16,
@@ -389,7 +516,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   saveButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
   },
   cancelButton: {
     backgroundColor: '#f0f0f0',
@@ -412,4 +539,4 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     marginHorizontal: 10,
   },
-});
+}); 
