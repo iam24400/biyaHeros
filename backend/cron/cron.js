@@ -1,7 +1,7 @@
 import cron from "cron";
 import https from "https";
 
-const job = new cron.CronJob("*/1 * * * *", function () {
+const job = new cron.CronJob("*/10 * * * *", function () {
   https
     .get("https://biyaheros.onrender.com/api/byaHero/biyaheros", (res) => {
       if (res.statusCode === 200) console.log("GET request sent successfully");
