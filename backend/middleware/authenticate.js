@@ -1,7 +1,8 @@
 import jwt from "jsonwebtoken";
 import queriesBD from "../database/queriesDB.js"
 
-const protectRoute = async (req, res, next) => {
+// t
+const authenticate = async (req, res, next) => {
   try {
     // get the token from client's request
     const token = req.header("Auth_Token");
@@ -22,4 +23,4 @@ s
   }
 };
 
-export default protectRoute;
+export default authenticate;

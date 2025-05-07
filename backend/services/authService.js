@@ -67,13 +67,13 @@ export const login = async (req, res) => {
       // check if user exists
       const existingEmail = await queriesDB.checkExistingEmail(email);
       if (!existingEmail) {
-        return res.status(400).json({ message: "Invalid credentials" });
+        return res.status(401).json({ message: "Invalid credentials" });
       };
   
       // check if password was correct
       const hashedPassword = await queriesDB.retrievePassword(email);
       const isCorrectPassword = await bcrypt.compare(password, hashedPassword);
-      if (!isCorrectPassword) return res.status(400).json({ message: "Invalid credentials" });
+      if (!isCorrectPassword) return res.status(401).json({ message: "Invalid credentials" });
   
       const token = generateToken(email);
   

@@ -170,7 +170,11 @@ const routeService = async (req, res) => {
       parseFloat(destLng)
     );
 
-    res.json(routes);
+    if (!routes) {
+      return res.status(404).json({ error: 'No routes found' });
+    }
+
+    res.status(200).json(routes);
   } catch (error) {
     console.error('Error finding routes:', error);
     res.status(500).json({ error: 'Failed to find connecting routes' });

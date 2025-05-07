@@ -1,5 +1,4 @@
 import queriesDB from "../database/queriesDB.js"
-import client from "../database/postgreDB.js"
 
 
 export const viewHistory = async (req, res) => {
@@ -22,7 +21,7 @@ export const viewHistory = async (req, res) => {
       favorite: record.isFavorite
     }));
 
-    res.json(formattedHistory);
+    res.status(200).json(formattedHistory);
   } catch (error) {
     console.error('Error retrieving history:', error);
     res.status(500).json({ error: 'Failed to retrieve history' });
@@ -72,7 +71,7 @@ export const updateFavorite = async (req, res) => {
       return res.status(404).json({ error: 'History record not found' });
     }
 
-    res.json({ 
+    res.status(200).json({ 
       message: 'Favorite status updated successfully',
       id: result.rows[0].id,
       isFavorite: result.rows[0].isFavorite
@@ -83,10 +82,3 @@ export const updateFavorite = async (req, res) => {
     res.status(500).json({ error: 'Failed to update favorite status' });
   }
 };
-
-
-
-
-
-
-
