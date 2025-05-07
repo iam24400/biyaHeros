@@ -56,7 +56,10 @@ const findConnectingRoutes = async (originLat, originLng, destLat, destLng) => {
                 points: [routePoints.slice(
                   Math.min(originIndex, destIndex),
                   Math.max(originIndex, destIndex) + 1
-                )]
+                ).map(point => ({
+                  ...point,
+                  color: routes[i].color
+                }))]
               };
             }
           }
@@ -101,7 +104,10 @@ const findConnectingRoutes = async (originLat, originLng, destLat, destLng) => {
                       route1Points.findIndex(p => p.latitude === originPoints[i].latitude && p.longitude === originPoints[i].longitude),
                       route1Points.findIndex(p => p.latitude === intersection1.latitude && p.longitude === intersection1.longitude)
                     ) + 1
-                  ),
+                  ).map(point => ({
+                    ...point,
+                    color: routes[i].color
+                  })),
                   route2Points.slice(
                     Math.min(
                       route2Points.findIndex(p => p.latitude === intersection2.latitude && p.longitude === intersection2.longitude),
@@ -111,7 +117,10 @@ const findConnectingRoutes = async (originLat, originLng, destLat, destLng) => {
                       route2Points.findIndex(p => p.latitude === intersection2.latitude && p.longitude === intersection2.longitude),
                       route2Points.findIndex(p => p.latitude === destPoints[j].latitude && p.longitude === destPoints[j].longitude)
                     ) + 1
-                  )
+                  ).map(point => ({
+                    ...point,
+                    color: routes[j].color
+                  }))
                 ],
                 intersections: [
                   {

@@ -39,12 +39,13 @@ export const register = async (req, res) => {
     // generating token using email 
     const token = generateToken(email);
 
-    const user = await queriesDB.retrievePassTypeAndTime(email);
+    const user = await queriesDB.retrieveIdPassTypeAndTime(email);
 
     // sending info to client
     res.status(201).json({
         token,
         user: {
+        id: user['id'],
         email: email,
         passengerType: passengerType,
         timeStamp: user['timeStamp']
@@ -76,11 +77,12 @@ export const login = async (req, res) => {
   
       const token = generateToken(email);
   
-      const user = await queriesDB.retrievePassTypeAndTime(email);
+      const user = await queriesDB.retrieveIdPassTypeAndTime(email);
   
       res.status(200).json({
         token,
         user: {
+          id: user['id'],
           email: email,
           passengerType: user['passengerType'],
           timeStamp: user['timeStamp']

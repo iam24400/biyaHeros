@@ -42,9 +42,9 @@ const queriesDB = {
     },
 
     // retrieve passengerType, timeStamp
-    async retrievePassTypeAndTime (email) {
+    async retrieveIdPassTypeAndTime (email) {
         try {
-            const query = `SELECT "passengerType", "timeStamp"::date FROM public."user" WHERE email = $1`;
+            const query = `SELECT "id", "passengerType", "timeStamp"::date FROM public."user" WHERE email = $1`;
             const result = await client.query( query, [email]);
             console.log(result.rows[0]);
             return result.rows[0];
@@ -53,8 +53,6 @@ const queriesDB = {
             throw err;
         }
     },
-
-    
 
     // Function to find nearest point on a route
     async findNearestPoint (lat, lng, routeId) {
@@ -70,7 +68,6 @@ const queriesDB = {
             console.error('Error:', err.message);
             throw err;
         }
-
     },
 
     // Function to get all points for a route
@@ -95,8 +92,66 @@ const queriesDB = {
             console.error('Error:', err.message);
             throw err;
         }
-    }
+    },
       
+    // update favorite in history
+    async updateFavorite (historyId, isFavorite) {
+        try {
+            const query = `UPDATE public.history SET "isFavorite" = $1 WHERE id = $2 RETURNING id, "isFavorite"`;
+            const result = await client.query(query, [isFavorite, historyId]);
+            return result;
+        } catch (err) {
+            console.error('Error:', err.message);
+            throw err;
+        } 
+    },
+
+    // store ride history
+    async storeHistory (userId, destination, startLocation, estimatedTime, fare) {
+        try {
+            const query = `INSERT INTO public.history (
+                    user_id, 
+                    destination, 
+                    "startLocation", 
+                    "estimatedTime", 
+                    fare, 
+                    "isFavorite", 
+                    "timeStamp") 
+                VALUES ($1, $2, $3, $4, $5, false, CURRENT_TIMESTAMP) RETURNING id`;
+            const result = await client.query(query, [userId, destination, startLocation, estimatedTime, fare]);
+            return result;
+        } catch (err) {
+            console.error('Error:', err.message);
+            throw err;
+        }
+    },
+
+    // display all history records
+    async viewHistory (userId) {
+        try {
+            const query = `
+            SELECT 
+                id, 
+                user_id, 
+                destination, 
+                "startLocation", 
+                "estimatedTime", 
+                fare, 
+                "isFavorite", 
+                "timeStamp"
+            FROM public.history
+            WHERE user_id = $1
+            ORDER BY "timeStamp" DESC
+            `;
+            const result = await client.query(query, [userId]);
+            return result;
+        } catch (error) {
+            console.error('Error:', err.message);
+            throw err;
+        }
+    }
+
+    
 
 }
 
