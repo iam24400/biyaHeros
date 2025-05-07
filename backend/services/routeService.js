@@ -158,7 +158,7 @@ const findConnectingRoutes = async (originLat, originLng, destLat, destLng) => {
 // get connecting routes between origin and destination
 const routeService = async (req, res) => {
   try {
-    const { originLat, originLng, destLat, destLng } = req.body;
+    const { originLat, originLng, destLat, destLng } = req.query;
     
     if (!originLat || !originLng || !destLat || !destLng) {
       return res.status(400).json({ error: 'Missing required parameters' });
