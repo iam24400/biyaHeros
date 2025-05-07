@@ -3,7 +3,7 @@ import queriesDB from "../database/queriesDB.js"
 // view all history
 export const viewHistory = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId } = req.query;
 
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
