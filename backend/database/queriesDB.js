@@ -221,7 +221,7 @@ const queriesDB = {
         }
     },
 
-        // update passenger type
+    // update passenger type
     async updatePassengerType(userId, passengerType) {
         try {
             const query = `

@@ -17,7 +17,9 @@ router.get('/getUserProfile', getUserProfile);
 router.post('/updateNotificationSettings', updateNotificationSettings);
 router.post('/updatePassengerType', updatePassengerType);
 
+// for cronsJob
 router.get('/biyaheros', async (req, res) => {
     console.log("biyaheros");
 });
+
 export default router;
